@@ -1,0 +1,8 @@
+node_modules/
+frontend/dist/
+.env
+backend/data/db.local.json
+backend/data/db.local.json.tmp
+backend/data/enviados/
+*.log
+.DS_Store

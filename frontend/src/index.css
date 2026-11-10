@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink: #16202a;
+  --color-ink-2: #3c4a57;
+  --color-ink-3: #6b7885;
+  --color-line: #dfe3e8;
+  --color-line-2: #c9cfd6;
+  --color-paper: #f4f5f7;
+  --color-card: #ffffff;
+
+  --color-accent: #1d4e73;
+  --color-accent-2: #163d5a;
+  --color-accent-soft: #e6eef5;
+
+  --color-ok: #1f7a4d;
+  --color-ok-soft: #e5f3ec;
+  --color-bad: #b42318;
+  --color-bad-soft: #fdecea;
+  --color-warn: #8a5a00;
+  --color-warn-soft: #fff4dc;
+
+  /* Cores do gabarito PO */
+  --color-po-head: #d9d9d9;
+  --color-po-fixo: #ffff00;
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Ficha PO: reprodução do gabarito (Arial, bordas finas, cinza D9D9D9, FIXO amarelo) */
+.ficha { -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: Arial, Helvetica, sans-serif; font-size: 13px; border-collapse: collapse; width: 100%; table-layout: fixed; color: #000; background: #fff; }
+.ficha td { border: 1px solid #000; padding: 3px 6px; text-align: center; vertical-align: middle; }
+.ficha .h { background: var(--color-po-head); font-weight: 700; }
+.ficha .fixo td { background: var(--color-po-fixo); }
+.ficha .b { font-weight: 700; }
+.ficha .tp td { background: var(--color-po-head); font-weight: 700; }
+
+/* Precisa vir ANTES do @media print, senão sobrescreve o display:block da impressão */
+.print-only { display: none; }
+
+@media print {
+  @page { size: A4 portrait; margin: 14mm; }
+  body { background: #fff; }
+  .no-print { display: none !important; }
+  .print-only { display: block !important; }
+  .print-area { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
+  .ficha-bloco { break-inside: avoid; margin-bottom: 18mm; }
+}

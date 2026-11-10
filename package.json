@@ -1,0 +1,16 @@
+{
+  "name": "auto-tm-karsten",
+  "private": true,
+  "description": "Automação da formação de tempos operacionais (T&M) e geração da Ficha PO — Hackathon Auto-T&M Karsten",
+  "scripts": {
+    "instalar": "npm --prefix backend install && npm --prefix frontend install",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix backend start",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "test": "npm --prefix backend test",
+    "gas-simulador": "npm --prefix backend run gas-simulador",
+    "segredo": "node -e \"console.log(require('crypto').randomBytes(48).toString('base64url'))\""
+  },
+  "engines": { "node": ">=20" }
+}
