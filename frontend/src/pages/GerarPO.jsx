@@ -239,11 +239,36 @@ function MontadorRoteiro({ mtm, roteiro, setRoteiro }) {
   const [codigos, setCodigos] = useState('');
   const [arrastando, setArrastando] = useState(null); // { origem: 'mtm'|'roteiro', valor }
   const [alvo, setAlvo] = useState(null);
+  const [selecao, setSelecao] = useState(() => new Set()); // códigos selecionados na matriz
+  const ancora = useRef(null); // último elemento clicado (base do Shift + clique)
   const porCodigo = useMemo(() => Object.fromEntries(mtm.map((e) => [e.codigo, e])), [mtm]);
   const filtrados = mtm.filter((e) => `${e.codigo} ${e.descricao}`.toLowerCase().includes(busca.toLowerCase()));
 
-  const adicionar = (codigo, pos = roteiro.length) =>
-    setRoteiro((r) => [...r.slice(0, pos), { id: novoId(), codigo, frequencia: 1 }, ...r.slice(pos)]);
+  const adicionar = (codigos, pos = roteiro.length) => {
+    const lista = (Array.isArray(codigos) ? codigos : [codigos]).map((codigo) => ({ id: novoId(), codigo, frequencia: 1 }));
+    setRoteiro((r) => [...r.slice(0, pos), ...lista, ...r.slice(pos)]);
+  };
+
+  // Seleção na matriz: clique simples = só ele; Ctrl/⌘ + clique = alterna; Shift + clique = intervalo a partir da âncora.
+  const clicarElemento = (e, codigo) => {
+    const codigosVisiveis = filtrados.map((x) => x.codigo);
+    if (e.shiftKey && ancora.current && codigosVisiveis.includes(ancora.current)) {
+      const a = codigosVisiveis.indexOf(ancora.current);
+      const b = codigosVisiveis.indexOf(codigo);
+      const intervalo = codigosVisiveis.slice(Math.min(a, b), Math.max(a, b) + 1);
+      setSelecao((s) => ((e.ctrlKey || e.metaKey) ? new Set([...s, ...intervalo]) : new Set(intervalo)));
+      return; // a âncora se mantém, como em gerenciadores de arquivos
+    }
+    if (e.ctrlKey || e.metaKey) {
+      setSelecao((s) => { const n = new Set(s); n.has(codigo) ? n.delete(codigo) : n.add(codigo); return n; });
+    } else {
+      setSelecao((s) => (s.size === 1 && s.has(codigo) ? new Set() : new Set([codigo])));
+    }
+    ancora.current = codigo;
+  };
+  // Mantém a ordem da matriz ao adicionar/arrastar vários.
+  const selecionadosEmOrdem = mtm.map((x) => x.codigo).filter((c) => selecao.has(c));
+  const limparSelecao = () => { setSelecao(new Set()); ancora.current = null; };
   const mover = (de, para) => setRoteiro((r) => {
     if (para < 0 || para >= r.length) return r;
     const c = [...r]; const [x] = c.splice(de, 1); c.splice(para, 0, x); return c;
@@ -264,25 +289,52 @@ function MontadorRoteiro({ mtm, roteiro, setRoteiro }) {
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         {/* Catálogo */}
         <div className="border-b border-line p-4 md:border-r md:border-b-0">
-          <p className="mb-2 text-[12px] font-semibold tracking-wide text-ink-2 uppercase">Matriz de elementos</p>
+          <div className="mb-2 flex min-h-7 items-center justify-between gap-2">
+            <p className="text-[12px] font-semibold tracking-wide text-ink-2 uppercase">Matriz de elementos</p>
+            {selecao.size > 0 && (
+              <span className="flex items-center gap-1">
+                <Botao tamanho="sm" onClick={() => { adicionar(selecionadosEmOrdem); limparSelecao(); }}>Adicionar {selecao.size}</Botao>
+                <Botao tamanho="sm" variante="fantasma" onClick={limparSelecao}>Limpar</Botao>
+              </span>
+            )}
+          </div>
           <Entrada value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar código ou descrição…" className="mb-2" />
-          <ul className="flex max-h-[340px] flex-col gap-1 overflow-y-auto pr-1">
-            {filtrados.map((e) => (
-              <li key={e.codigo} draggable onDragStart={() => setArrastando({ origem: 'mtm', valor: e.codigo })} onDragEnd={() => { setArrastando(null); setAlvo(null); }}
-                className="group flex cursor-grab items-center gap-2 rounded-md border border-line bg-white px-2.5 py-2 text-sm hover:border-accent/40 hover:bg-accent-soft/50 active:cursor-grabbing">
+          <ul className="flex max-h-[340px] flex-col gap-1 overflow-y-auto pr-1" tabIndex={-1} aria-multiselectable="true" role="listbox"
+            onKeyDown={(ev) => {
+              if (ev.key === 'Escape') limparSelecao();
+              if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'a') { ev.preventDefault(); setSelecao(new Set(filtrados.map((x) => x.codigo))); }
+            }}>
+            {filtrados.map((e) => {
+              const sel = selecao.has(e.codigo);
+              return (
+              <li key={e.codigo} draggable role="option" aria-selected={sel}
+                onClick={(ev) => clicarElemento(ev, e.codigo)}
+                onDragStart={(ev) => {
+                  // Arrastar um item selecionado leva toda a seleção; arrastar um não selecionado leva só ele.
+                  const valor = sel ? selecionadosEmOrdem : [e.codigo];
+                  ev.dataTransfer.effectAllowed = 'copy';
+                  setArrastando({ origem: 'mtm', valor });
+                }}
+                onDragEnd={() => { setArrastando(null); setAlvo(null); }}
+                className={`group flex cursor-grab items-center gap-2 rounded-md border px-2.5 py-2 text-sm select-none active:cursor-grabbing ${sel ? 'border-accent bg-accent-soft' : 'border-line bg-white hover:border-accent/40 hover:bg-accent-soft/50'}`}>
                 <span className="num w-9 shrink-0 font-semibold text-accent">{e.codigo}</span>
                 <span className="min-w-0 flex-1 truncate" title={e.descricao}>{e.descricao}</span>
                 <span className="num shrink-0 text-[12px] text-ink-3">{min4(e.tempo_min)}</span>
-                <button onClick={() => adicionar(e.codigo)} className="shrink-0 rounded px-1.5 text-accent hover:bg-accent hover:text-white" aria-label={`Adicionar ${e.codigo}`}>＋</button>
+                <button onClick={(ev) => { ev.stopPropagation(); adicionar(e.codigo); }} className="shrink-0 rounded px-1.5 text-accent hover:bg-accent hover:text-white" aria-label={`Adicionar ${e.codigo}`}>＋</button>
               </li>
-            ))}
+              );
+            })}
             {!filtrados.length && <li className="py-4 text-center text-sm text-ink-3">Nenhum elemento.</li>}
           </ul>
+          <p className="mt-2 text-[11px] text-ink-3">Ctrl + clique seleciona vários · Shift + clique seleciona um intervalo · arraste a seleção para a sequência.</p>
         </div>
 
         {/* Roteiro */}
         <div className="flex flex-col p-4">
-          <p className="mb-2 text-[12px] font-semibold tracking-wide text-ink-2 uppercase">Sequência ({roteiro.length})</p>
+          <div className="mb-2 flex min-h-7 items-center justify-between gap-2">
+            <p className="text-[12px] font-semibold tracking-wide text-ink-2 uppercase">Sequência ({roteiro.length})</p>
+            {roteiro.length > 0 && <Botao tamanho="sm" variante="fantasma" onClick={() => setRoteiro([])}>Limpar</Botao>}
+          </div>
           <ol className={`flex min-h-[120px] flex-1 flex-col gap-1 rounded-md ${arrastando ? 'bg-accent-soft/40 outline-2 outline-dashed outline-accent/30' : ''}`}
             onDragOver={(e) => { e.preventDefault(); if (alvo === null) setAlvo(roteiro.length); }}
             onDrop={(e) => { e.preventDefault(); soltar(alvo ?? roteiro.length); }}>
