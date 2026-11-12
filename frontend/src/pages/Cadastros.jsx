@@ -1,7 +1,8 @@
 // Telas de cadastro: Máquinas (TEMPO-CM) e Matriz de Elementos (MTM).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api.js';
-import { dec, inteiro, min4 } from '../fmt.js';
+import { dec, inteiro, min4, numeroDe } from '../fmt.js';
+import { Alternador, FiltroIntervalo, FiltroLista, ehTudo, recortar } from '../components/filtros.jsx';
 import { Botao, Campo, Cartao, Entrada, Modal, Selo, Tabela, Vazio, useAvisar, useConfirmar, useErroApi } from '../components/ui.jsx';
 
 function useLista(rota) {
@@ -30,19 +31,123 @@ function ordenar(lista, { campo, asc }) {
 }
 
 // ======================================================================
+// Filtros avançados de máquinas
+// ======================================================================
+const FILTROS_VAZIOS = { codigo: null, tipos: [], rpmModo: 'valores', rpms: [], rpmIntervalo: null, tempo: null };
+const CONSULTA_VAZIA = { busca: '', filtros: FILTROS_VAZIOS, verInativas: false };
+const codigoNum = (m) => Number.parseFloat(String(m.codigo).replace(',', '.'));
+const faixa = (nums) => (nums.length ? [Math.min(...nums), Math.max(...nums)] : [0, 0]);
+const unicos = (lista) => [...new Set(lista)];
+const inteiroBR = (n) => String(Math.round(n));
+const tempoBR = (n) => dec(n, 4);
+
+function limitesDe(itens) {
+  const ok = (n) => Number.isFinite(n);
+  return {
+    codigo: faixa(itens.map(codigoNum).filter(ok)),
+    rpm: faixa(itens.map((m) => m.rpm).filter(ok)),
+    tempo: faixa(itens.map((m) => m.tempo_por_metro).filter(ok)),
+    tipos: unicos(itens.map((m) => m.tipo).filter(Boolean)).sort((x, y) => x.localeCompare(y, 'pt-BR')).map((t) => ({ valor: t, rotulo: t })),
+    rpms: unicos(itens.map((m) => m.rpm).filter(ok)).sort((x, y) => x - y).map((v) => ({ valor: v, rotulo: inteiro(v) })),
+  };
+}
+
+/**
+ * Converte a consulta aplicada em um único predicado, montado UMA vez por busca:
+ * o texto é normalizado e as listas viram Set antes de percorrer as máquinas.
+ * Também devolve quantos filtros estão ativos (para o contador do botão).
+ */
+function montarConsulta({ busca, filtros: f, verInativas }, lim) {
+  const testes = [];
+  const q = busca.trim().toLowerCase();
+  if (q) testes.push((m) => `${m.codigo} ${m.tipo} ${m.descricao}`.toLowerCase().includes(q));
+  if (!verInativas) testes.push((m) => m.ativo !== false);
+
+  let n = verInativas ? 1 : 0;
+  const dentro = (campo, v, limites, ler) => {
+    if (!v) return;
+    const [lo, hi] = recortar(v, limites);
+    if (ehTudo([lo, hi], limites)) return;
+    n++; testes.push((m) => { const x = ler(m); return Number.isFinite(x) && x >= lo && x <= hi; });
+  };
+  const naLista = (valores, ler) => {
+    if (!valores.length) return;
+    const set = new Set(valores);
+    n++; testes.push((m) => set.has(ler(m)));
+  };
+  dentro('codigo', f.codigo, lim.codigo, codigoNum);
+  naLista(f.tipos, (m) => m.tipo);
+  if (f.rpmModo === 'valores') naLista(f.rpms, (m) => m.rpm);
+  else dentro('rpm', f.rpmIntervalo, lim.rpm, (m) => m.rpm);
+  dentro('tempo', f.tempo, lim.tempo, (m) => m.tempo_por_metro);
+
+  return { passa: (m) => testes.every((t) => t(m)), nAtivos: n };
+}
+
+function PainelFiltros({ id, aberto, consulta, setConsulta, lim, admin, aoLimpar, nAtivos }) {
+  const { filtros } = consulta;
+  const set = (campo) => (v) => setConsulta((c) => ({ ...c, filtros: { ...c.filtros, [campo]: v } }));
+  return (
+    <div id={id} inert={!aberto} className={`grid transition-[grid-template-rows] duration-200 ease-out ${aberto ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+      <div className="min-h-0 overflow-hidden">
+        <div className="grid gap-x-6 gap-y-5 border-b border-line bg-paper/60 p-4 sm:grid-cols-2">
+          <FiltroIntervalo titulo="Código" limites={lim.codigo} valor={filtros.codigo} aoMudar={set('codigo')}
+            formatar={inteiroBR} lerTexto={numeroDe} />
+          <FiltroIntervalo titulo="Tempo/metro (min/m)" limites={lim.tempo} valor={filtros.tempo} aoMudar={set('tempo')}
+            passo={0.0001} formatar={tempoBR} lerTexto={numeroDe} />
+          <FiltroLista titulo="Tipo" opcoes={lim.tipos} selecionados={filtros.tipos} aoMudar={set('tipos')} placeholder="Todos os tipos" />
+          {filtros.rpmModo === 'valores'
+            ? <FiltroLista titulo="RPM padrão" opcoes={lim.rpms} selecionados={filtros.rpms} aoMudar={set('rpms')} placeholder="Todos os RPMs"
+                acao={<Alternador rotulo="Modo do filtro de RPM" opcoes={MODOS_RPM} valor="valores" aoMudar={set('rpmModo')} />} />
+            : <FiltroIntervalo titulo="RPM padrão" limites={lim.rpm} valor={filtros.rpmIntervalo} aoMudar={set('rpmIntervalo')}
+                formatar={inteiroBR} lerTexto={numeroDe}
+                acao={<Alternador rotulo="Modo do filtro de RPM" opcoes={MODOS_RPM} valor="intervalo" aoMudar={set('rpmModo')} />} />}
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3 sm:col-span-2">
+            {admin
+              ? <label className="flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" className="accent-accent" checked={consulta.verInativas}
+                  onChange={(e) => setConsulta((c) => ({ ...c, verInativas: e.target.checked }))} /> Mostrar desativadas</label>
+              : <span />}
+            <div className="flex gap-2">
+              <Botao type="button" tamanho="sm" variante="fantasma" onClick={aoLimpar}>Limpar filtros</Botao>
+              <Botao type="submit" tamanho="sm">Buscar máquinas</Botao>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+const MODOS_RPM = [['valores', 'Valores'], ['intervalo', 'Intervalo']];
+
+// ======================================================================
 export function Maquinas({ usuario }) {
   const admin = usuario.papel === 'admin';
-  const [verInativas, setVerInativas] = useState(false);
-  const [itens, recarregar] = useLista(`/maquinas${verInativas ? '?inativas=1' : ''}`);
-  const [busca, setBusca] = useState('');
+  // Admin sempre recebe também as desativadas; "Mostrar desativadas" vira um filtro local (sem nova requisição).
+  const [itens, recarregar] = useLista(`/maquinas${admin ? '?inativas=1' : ''}`);
+  // rascunho = o que está nos campos; aplicada = o que filtra a tabela. A filtragem só roda ao buscar.
+  const [rascunho, setRascunho] = useState(CONSULTA_VAZIA);
+  const [aplicada, setAplicada] = useState(CONSULTA_VAZIA);
   const [ordem, setOrdem] = useState({ campo: 'codigo', asc: true });
   const [editando, setEditando] = useState(null);
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const avisar = useAvisar();
   const erroApi = useErroApi();
   const confirmar = useConfirmar();
 
-  const visiveis = useMemo(() => ordenar((itens ?? []).filter((m) =>
-    `${m.codigo} ${m.tipo} ${m.descricao}`.toLowerCase().includes(busca.toLowerCase())), ordem), [itens, busca, ordem]);
+  const lim = useMemo(() => limitesDe(itens ?? []), [itens]);
+  const consulta = useMemo(() => montarConsulta(aplicada, lim), [aplicada, lim]);
+  const filtradas = useMemo(() => (itens ?? []).filter(consulta.passa), [itens, consulta]);
+  const visiveis = useMemo(() => ordenar(filtradas, ordem), [filtradas, ordem]); // reordenar não refiltra
+  const nAtivos = consulta.nAtivos;
+  const pendente = rascunho !== aplicada && JSON.stringify(rascunho) !== JSON.stringify(aplicada);
+  const totalBase = (itens ?? []).filter((m) => aplicada.verInativas || m.ativo !== false).length;
+
+  const buscar = (e) => { e?.preventDefault(); setAplicada(rascunho); };
+  const limparFiltros = () => {
+    const c = { ...rascunho, filtros: FILTROS_VAZIOS, verInativas: false };
+    setRascunho(c); setAplicada(c);
+  };
 
   async function desativar(m) {
     const ok = await confirmar({ titulo: `Desativar máquina ${m.codigo}?`, perigo: true, confirmar: 'Desativar',
@@ -60,12 +165,28 @@ export function Maquinas({ usuario }) {
       <Cabecalho titulo="Máquinas" sub="Cadastro TEMPO-CM: o tempo/metro de cada máquina define o elemento FIXO da ficha."
         acao={admin && <Botao onClick={() => setEditando({})}>+ Nova máquina</Botao>} />
       <Cartao corpoClassName="p-0">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
-          <Entrada value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código, tipo ou modelo…" className="max-w-xs" />
-          {admin && <label className="flex items-center gap-2 text-sm text-ink-2"><input type="checkbox" checked={verInativas} onChange={(e) => setVerInativas(e.target.checked)} /> Mostrar desativadas</label>}
-          {!admin && <Selo>Somente leitura</Selo>}
-        </div>
-        {itens === null ? <p className="p-6 text-sm text-ink-3">Carregando…</p> : !visiveis.length ? <div className="p-4"><Vazio>Nenhuma máquina encontrada.</Vazio></div> : (
+        <form onSubmit={buscar} role="search" aria-label="Buscar máquinas">
+          <div className="flex flex-wrap items-center gap-3 border-b border-line p-3">
+            <Entrada value={rascunho.busca} onChange={(e) => setRascunho((c) => ({ ...c, busca: e.target.value }))}
+              placeholder="Buscar por código, tipo ou modelo…" aria-label="Texto da busca" className="max-w-xs" />
+            <Botao type="submit" tamanho="sm" variante={pendente ? 'primario' : 'secundario'}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              Buscar máquinas
+            </Botao>
+            <Botao type="button" variante={filtrosAbertos ? 'secundario' : 'fantasma'} tamanho="sm" aria-expanded={filtrosAbertos} aria-controls="filtros-maquinas"
+              onClick={() => setFiltrosAbertos((v) => !v)}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+              Filtros avançados
+              {nAtivos > 0 && <span className="num rounded-full bg-accent px-1.5 text-[11px] leading-[18px] text-white">{nAtivos}</span>}
+              <span className={`text-[10px] transition-transform ${filtrosAbertos ? 'rotate-180' : ''}`} aria-hidden>▼</span>
+            </Botao>
+            {pendente && <Selo tom="warn">alterações não aplicadas</Selo>}
+            {!admin && <Selo>Somente leitura</Selo>}
+          </div>
+          <PainelFiltros id="filtros-maquinas" aberto={filtrosAbertos} consulta={rascunho} setConsulta={setRascunho} lim={lim}
+            admin={admin} aoLimpar={limparFiltros} nAtivos={nAtivos} />
+        </form>
+        {itens === null ? <p className="p-6 text-sm text-ink-3">Carregando…</p> : !visiveis.length ? <div className="p-4"><Vazio>Nenhuma máquina encontrada.{nAtivos > 0 && <> <button className="text-accent hover:underline" onClick={limparFiltros}>Limpar filtros</button></>}</Vazio></div> : (
           <Tabela colunas={[
             { rotulo: <Ordenavel rotulo="Código" campo="codigo" {...sp} /> }, { rotulo: <Ordenavel rotulo="Tipo" campo="tipo" {...sp} /> },
             { rotulo: <Ordenavel rotulo="Descrição / modelo" campo="descricao" {...sp} /> },
