@@ -61,3 +61,7 @@ button, select {
   .print-area { box-shadow: none !important; border: 0 !important; padding: 0 !important; }
   .ficha-bloco { break-inside: avoid; margin-bottom: 18mm; }
 }
+
+/* Barra de tempo restante dos avisos (encolhe da direita para a esquerda). */
+@keyframes aviso-tempo { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+.aviso-tempo { transform-origin: left; animation-name: aviso-tempo; animation-timing-function: linear; animation-fill-mode: forwards; }
