@@ -23,6 +23,7 @@ flowchart LR
 | **Frontend** (`frontend/`) | Telas de login sem senha, geração de PO (formulário, roteiro arrastável, importação em lote, pré-visualização ao vivo, impressão), CRUD de máquinas e MTM, administração. Não guarda nenhum segredo. |
 | **Backend** (`backend/`) | Autenticação (código por e-mail, JWT em cookie `HttpOnly`/`SameSite=Strict`, tokens de API), autorização por papel, validação, **motor de cálculo puro**, leitura de arquivos e geração do `.xlsx`. |
 | **Apps Script** (`apps-script/Code.gs`) | Persistência em Planilhas (`TEMPO_CM`, `MATRIZ_MTM`, `USUARIOS`, `TOKENS`, `LOG`), envio do código e da ficha por e-mail. Só aceita chamadas assinadas pelo backend. |
+| **Apps Script do Drive** (`apps-script-drive/`) | Projeto separado que guarda as Fichas PO em PDF em `Fichas PO / <ano> / <mês>`. Único escopo `drive.file`: só enxerga o que ele mesmo criou. Só aceita chamadas assinadas pelo backend com `GAS_DRIVE_SECRET`. |
 
 **Dois modos de armazenamento com a mesma interface** (`backend/src/store/`):
 - `STORE=google` é a arquitetura alvo: Planilhas + e-mail real.
@@ -70,6 +71,21 @@ Entre com o `ADMIN_EMAIL`. O código aparece na tela (com `DEV_EXIBIR_CODIGO=tru
 > Ao alterar o `Code.gs`, publique uma **nova versão** da implantação (Gerenciar implantações → editar → Nova versão).
 
 **Sem conta Google à mão?** `npm run gas-simulador` executa o próprio `Code.gs` em um simulador local (http://localhost:8787/exec). Suba-o com as mesmas variáveis do backend (`GAS_SECRET=... ADMIN_EMAIL=... npm run gas-simulador`) e use `GAS_URL=http://localhost:8787/exec`. Os e-mails, com o código de login, aparecem no terminal do simulador.
+
+## Guardar fichas no Google Drive (opcional, qualquer modo)
+
+O botão **Guardar no Google Drive** gera o PDF da ficha no navegador (Web Worker, sem travar a tela) e o envia ao backend. O backend exige papel de engenheiro, confere que o arquivo é um PDF, **recalcula a ficha** (o nome do arquivo e o TP gravado na descrição vêm do servidor), assina e repassa ao Apps Script do Drive. Avisos no canto inferior direito acompanham cada etapa, inclusive se você trocar de página.
+
+1. Em https://script.google.com crie um **projeto novo** (não use o da planilha). Cole `apps-script-drive/Code.gs`.
+2. Em **Configurações do projeto**, marque *Mostrar o arquivo de manifesto "appsscript.json"* e cole o conteúdo de `apps-script-drive/appsscript.json`. Ele ativa a API avançada do Drive (v3) e restringe o projeto ao escopo `drive.file`.
+3. Em **Propriedades do script**, crie `GAS_DRIVE_SECRET` com um valor novo de `npm run segredo` (diferente do `GAS_SECRET`).
+4. Execute a função **`configurar`** e autorize. A tela de permissão deve pedir só *"Ver, editar, criar e excluir apenas os arquivos do Google Drive que você usa com este app"*. A pasta `Fichas PO` é criada no seu Drive.
+5. **Implantar → Nova implantação → App da Web**: *Executar como*: você; *Quem pode acessar*: **Qualquer pessoa**. Copie a URL `/exec`.
+6. No `backend/.env`: `GAS_DRIVE_URL=<url /exec>` e `GAS_DRIVE_SECRET=<o mesmo do passo 3>`. Reinicie o backend.
+
+> Segurança: cada requisição leva HMAC-SHA256 sobre ação, usuário, timestamp, nonce e o **SHA-256 e tamanho do PDF**. O Apps Script rejeita assinatura inválida, requisição com mais de 60 s, nonce repetido, PDF alterado, arquivo que não começa com `%PDF-` e mais de 1 MB. O backend também confere MIME `application/pdf`, extensão `.pdf`, o início `%PDF-` e o limite de 1 MB antes de repassar. Os arquivos não são compartilhados; erros internos do Drive ficam só no log do projeto. O backend limita a 30 fichas por hora por usuário.
+
+**Sem conta Google à mão?** `GAS_DRIVE_SECRET=... node tests/gas-drive-simulador.js` (dentro de `backend/`) roda o próprio `Code.gs` com um Drive em memória em http://localhost:8788/exec e grava os PDFs recebidos em `backend/data/drive-simulado/`.
 
 ## Entrada de dados: qualquer formato, inclusive em lote
 
@@ -134,14 +150,15 @@ Erros de negócio voltam como `422 { erro, erros: [...] }`, com todas as pendên
 npm test
 ```
 
-**39 testes** em três suítes:
+**Testes** em quatro suítes:
 - `motor.test.js`: cálculo, leitores (txt/json/csv/lote) e **comparação célula a célula com o gabarito oficial**;
 - `api.test.js`: API ponta a ponta (login, 401/403/422, lote, soft delete, token, e-mail), executada **duas vezes**: no modo local e no modo Google, com o `Code.gs` real rodando no simulador;
 - `gas.test.js`: segurança do Apps Script (assinatura falsa, requisição vencida, replay, papel conferido de novo, e-mail fora do cadastro).
+- `drive.test.js`: Apps Script do Drive (pastas ano/mês, assinatura, replay, PDF adulterado, nome malicioso, erros sem vazamento) e a rota `POST /api/po/drive` de ponta a ponta.
 
 ## Segurança
 
-- `JWT_SECRET` e `GAS_SECRET` ficam só em `.env` e nas Propriedades do script; o repositório traz apenas o `.env.example`.
+- `JWT_SECRET`, `GAS_SECRET` e `GAS_DRIVE_SECRET` ficam só em `.env` e nas Propriedades do script; o repositório traz apenas o `.env.example`.
 - Cookie `HttpOnly` + `SameSite=Strict` (+ `Secure` em produção). CORS desligado por padrão: frontend e API na mesma origem.
 - Códigos de login guardados apenas como HMAC, com validade de 10 min, máximo de 5 tentativas e 30 s entre reenvios. Rate limit por IP + e-mail.
 - Tokens de API guardados como SHA-256 e exibidos uma única vez.
@@ -154,6 +171,7 @@ npm test
 ```
 auto-tm-karsten/
 ├── apps-script/Code.gs            # Planilhas + HMAC + MailApp + setup()
+├── apps-script-drive/             # Fichas PO em PDF no Drive (escopo drive.file) + HMAC
 ├── backend/
 │   ├── src/core/motorTM.js        # cálculo puro (FIXO, TP, RPM ±10%)
 │   ├── src/ingest/                # leitores: catálogo e demandas (txt/json/csv/xlsx/ods)
@@ -162,7 +180,7 @@ auto-tm-karsten/
 │   ├── src/store/                 # local.js | google.js (mesma interface) + cache
 │   ├── src/routes/                # auth, cadastros, po, admin
 │   ├── data/Entradas.ods          # Kit de Apoio (semente do modo local)
-│   └── tests/                     # 39 testes + simulador do Apps Script
+│   └── tests/                     # testes + simuladores dos dois Apps Scripts
 ├── frontend/src/                  # React + Vite + Tailwind
 └── docs/PITCH.md                  # roteiro da apresentação
 ```

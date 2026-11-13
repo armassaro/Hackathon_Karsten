@@ -20,6 +20,10 @@ export const config = {
   gasUrl: env.GAS_URL || '',
   gasSecret: env.GAS_SECRET || '',
 
+  // Apps Script dedicado a guardar as fichas em PDF no Google Drive (funciona em qualquer STORE).
+  gasDriveUrl: env.GAS_DRIVE_URL || '',
+  gasDriveSecret: env.GAS_DRIVE_SECRET || '',
+
   adminEmail: (env.ADMIN_EMAIL || '').toLowerCase(),
   origemFrontend: env.ORIGEM_FRONTEND || '',
   // Só para ensaio local: mostra o código de login na própria tela. NUNCA em produção.
@@ -40,6 +44,11 @@ export function validarConfig() {
   if (!['local', 'google'].includes(config.modo)) erros.push('STORE deve ser "local" ou "google".');
   if (config.modo === 'google' && (!config.gasUrl || config.gasSecret.length < 32)) {
     erros.push('Modo google exige GAS_URL e GAS_SECRET (mínimo 32 caracteres).');
+  }
+  if (config.gasDriveUrl || config.gasDriveSecret) {
+    if (!config.gasDriveUrl || config.gasDriveSecret.length < 32) erros.push('Google Drive exige GAS_DRIVE_URL e GAS_DRIVE_SECRET (mínimo 32 caracteres).');
+    else if (!/^https:\/\//.test(config.gasDriveUrl) && !/^http:\/\/(127\.0\.0\.1|localhost)[:/]/.test(config.gasDriveUrl)) erros.push('GAS_DRIVE_URL deve usar https://.');
+    if (config.gasDriveSecret && config.gasDriveSecret === config.gasSecret) erros.push('GAS_DRIVE_SECRET deve ser diferente de GAS_SECRET.');
   }
   if (config.modo === 'local' && !config.adminEmail) erros.push('Modo local exige ADMIN_EMAIL (primeiro administrador).');
   if (erros.length) throw new Error('Configuração inválida:\n - ' + erros.join('\n - '));

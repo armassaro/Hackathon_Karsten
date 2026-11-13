@@ -1,4 +1,4 @@
-// Geração da Ficha PO: pré-visualização, importação de arquivos, exportação e envio por e-mail.
+// Geração da Ficha PO: pré-visualização, importação de arquivos, exportação, envio por e-mail e Google Drive.
 import { Router } from 'express';
 import multer from 'multer';
 import { rateLimit } from 'express-rate-limit';
@@ -7,9 +7,25 @@ import { calcularPO, ErroValidacao } from '../core/motorTM.js';
 import { lerDemandas, montarDemanda } from '../ingest/demanda.js';
 import { gerarXlsx } from '../export/fichaPO.js';
 import { obterCatalogo } from '../store/index.js';
+import { driveConfigurado, guardarFichaNoDrive, nomePdf, parecePdf } from '../services/driveFichas.js';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 50 } });
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+// PDF da ficha gerado no navegador: 1 arquivo .pdf de até 1 MB + o campo "demanda" (JSON).
+const MAX_PDF = 1024 * 1024;
+const uploadPdf = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_PDF, files: 1, fields: 1, fieldSize: 100 * 1024 },
+  fileFilter: (req, arquivo, ok) => ok(null, arquivo.mimetype === 'application/pdf' && /\.pdf$/i.test(arquivo.originalname)),
+});
+
+const limiteDrive = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 30,
+  keyGenerator: (req) => req.user.email,
+  message: { erro: 'Limite de 30 fichas guardadas por hora atingido.' },
+});
 
 const limiteEmail = rateLimit({
   windowMs: 60 * 60_000,
@@ -107,6 +123,31 @@ export function rotasPO(store) {
     }, req.user.email);
     res.json({ ...resultado, enviadoPara: req.user.email, arquivo });
     log(req, 'PO_ENVIADA', { arquivo, para: req.user.email });
+  });
+
+  // Guarda no Google Drive o PDF gerado no navegador. A demanda é recalculada aqui: o nome do arquivo e a
+  // descrição (com o TP) vêm do servidor, e uma ficha inválida não chega ao Drive.
+  r.post('/drive', engenheiro, limiteDrive, (req, res, next) => uploadPdf.single('pdf')(req, res, (err) => {
+    if (err?.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ erro: 'A ficha em PDF passa de 1 MB.' });
+    next(err);
+  }), async (req, res) => {
+    if (!driveConfigurado()) return res.status(503).json({ erro: 'Google Drive não configurado no servidor (GAS_DRIVE_URL e GAS_DRIVE_SECRET).' });
+    // Tipo conferido três vezes: MIME e extensão (fileFilter acima) e o conteúdo, que deve começar com "%PDF-".
+    if (!req.file || !parecePdf(req.file.buffer)) return res.status(400).json({ erro: 'Envie a ficha em PDF (.pdf).' });
+    let demanda;
+    try { demanda = JSON.parse(req.body?.demanda ?? ''); } catch { return res.status(400).json({ erro: 'Demanda inválida.' }); }
+
+    const po = calcularPO(normalizar(demanda), await obterCatalogo(store));
+    const c = po.cabecalho;
+    const nome = nomePdf(c);
+    const resultado = await guardarFichaNoDrive({
+      pdf: req.file.buffer,
+      nome,
+      descricao: `Ficha PO ${c.titulo || '—'} rev. ${c.revisao || '00'} · ${c.operacao || '—'} · TP ${po.tp_min.toFixed(4).replace('.', ',')} min (calculado pelo servidor)`,
+      actor: req.user.email,
+    });
+    res.json(resultado);
+    log(req, 'PO_DRIVE', { arquivo: resultado.nome, caminho: resultado.caminho });
   });
 
   return r;

@@ -28,7 +28,7 @@ const assinatura = (form) => JSON.stringify(formParaDemanda(form));
 
 /**
  * Ficha PO gerada sob demanda (gerar()); respostas antigas são descartadas.
- * estado: 'vazio' | 'calculando' | 'ok' | 'erro' | 'desatualizada'.
+ * estado: 'vazio' | 'calculando' | 'ok' | 'erro' | 'desatualizada'. `demanda` = dados que geraram a `po`.
  * 'desatualizada' = o formulário mudou desde a última geração; 300 ms após cada mudança o formulário é
  * comparado com o da última geração e, se voltou a ser igual, o estado anterior (`anterior`) é restaurado.
  */
@@ -54,10 +54,11 @@ export function usePreviewPO(form) {
     gerado.current = assinatura(form);
     setPreview((p) => ({ ...p, estado: 'calculando' }));
     const locais = errosLocais(form);
+    const demanda = formParaDemanda(form);
     try {
-      const po = await api.post('/po/preview', formParaDemanda(form));
+      const po = await api.post('/po/preview', demanda);
       if (n !== seq.current) return;
-      setPreview(locais.length ? { estado: 'erro', erros: locais, po } : { estado: 'ok', po });
+      setPreview(locais.length ? { estado: 'erro', erros: locais, po } : { estado: 'ok', po, demanda });
     } catch (e) {
       if (n === seq.current) setPreview({ estado: 'erro', erros: juntarErros(form, locais, e.erros?.length ? e.erros : [e.message]) });
     }

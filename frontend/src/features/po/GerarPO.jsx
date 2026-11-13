@@ -63,7 +63,8 @@ export default function GerarPO({ usuario, modo }) {
 
       {/* ================= PRÉ-VISUALIZAÇÃO ================= */}
       <PainelPreview preview={preview} aoGerar={gerarFicha} poValida={poValida} ocupado={ops.ocupado} email={usuario.email} modo={modo}
-        aoBaixar={() => ops.baixar([demandaAtual])} aoImprimir={() => ops.imprimirPOs([poValida])} aoEnviar={() => ops.enviar([demandaAtual])} />
+        aoBaixar={() => ops.baixar([demandaAtual])} aoImprimir={() => ops.imprimirPOs([poValida])} aoEnviar={() => ops.enviar([demandaAtual])}
+        aoGuardarDrive={() => ops.guardarNoDrive(poValida, preview.demanda)} />
 
       <AreaImpressao pos={ops.imprimir || (poValida ? [poValida] : [])} />
     </div>

@@ -8,18 +8,27 @@ export function assinar(base, segredo = config.gasSecret) {
   return crypto.createHmac('sha256', segredo).update(base, 'utf8').digest('base64');
 }
 
-export async function chamarGoogle(action, data = {}, actor = 'sistema') {
+/** Chamada ao Apps Script principal (planilhas, e-mail). */
+export function chamarGoogle(action, data = {}, actor = 'sistema') {
+  return chamarAppsScript({ url: config.gasUrl, segredo: config.gasSecret, action, data, actor });
+}
+
+/**
+ * Chamada assinada genérica. `extras` vai no corpo, FORA da parte assinada (ex.: o PDF em base64) —
+ * por isso o conteúdo extra deve estar preso à assinatura por um hash dentro de `data`.
+ */
+export async function chamarAppsScript({ url, segredo, action, data = {}, actor = 'sistema', extras = {}, timeoutMs = 25_000 }) {
   const base = JSON.stringify({ action, data, actor, ts: Date.now(), nonce: crypto.randomUUID() });
-  const sig = assinar(base);
+  const sig = assinar(base, segredo);
 
   const controle = new AbortController();
-  const timeout = setTimeout(() => controle.abort(), 25_000);
+  const timeout = setTimeout(() => controle.abort(), timeoutMs);
   let resposta;
   try {
-    resposta = await fetch(config.gasUrl, {
+    resposta = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita preflight no Apps Script
-      body: JSON.stringify({ base, sig }),
+      body: JSON.stringify({ ...extras, base, sig }),
       redirect: 'follow',
       signal: controle.signal,
     });
