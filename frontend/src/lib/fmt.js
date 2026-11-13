@@ -13,4 +13,5 @@ export const numeroDe = (s) => {
   return Number(t.includes(',') && t.includes('.') ? t.replace(/\./g, '').replace(',', '.') : t.replace(',', '.'));
 };
 
-export const PAPEL_ROTULO = { admin: 'Administrador', engenheiro: 'Engenheiro', leitor: 'Leitor' };
+/** 2.5 -> "2,5" ; vazio para ausente/NaN. Usado ao levar números da API para campos de texto. */
+export const textoDe = (n) => (n === undefined || n === null || Number.isNaN(n) ? '' : String(n).replace('.', ','));

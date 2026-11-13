@@ -1,10 +1,10 @@
 // Ficha PO na tela, no mesmo layout do gabarito PO-SL-000 (cinza D9D9D9, FIXO em amarelo, Arial).
-import { dec, inteiro, min4 } from '../fmt.js';
+import { dec, inteiro, min4 } from '../../lib/fmt.js';
 
 const LARGURAS = [19.86, 26.08, 17.97, 14.46, 22.16];
 const total = LARGURAS.reduce((a, b) => a + b, 0);
 
-export default function FichaPO({ po }) {
+export function FichaPO({ po }) {
   const { cabecalho: c, equipamento: eq, linhas, tp_min } = po;
   return (
     <table className="ficha" aria-label={`Ficha PO ${c.titulo}`}>
