@@ -35,13 +35,3 @@ export function formParaDemanda(f) {
     roteiro: f.roteiro.map((p) => ({ codigo: p.codigo, frequencia: numeroDe(p.frequencia) || 1 })),
   };
 }
-
-/** "2.1, 1.1x2; 3.1" -> passos do roteiro (mesma regra do backend). */
-export function lerCodigos(texto) {
-  const s = texto.replace(/\s*([x*×])\s*/gi, '$1');
-  const sep = /[;|\n]/.test(s) ? /[;|\n]+/ : /[,\s]+/;
-  return s.split(sep).map((t) => t.trim()).filter(Boolean).map((t) => {
-    const m = t.match(/^(\d+[.,]\d+)(?:[x*×](\d+(?:[.,]\d+)?))?$/i);
-    return novoPasso((m ? m[1] : t).replace(',', '.'), m?.[2] ? numeroDe(m[2]) : 1);
-  });
-}

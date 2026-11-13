@@ -7,11 +7,12 @@ import { StatusPreview, TotalTP } from './StatusPreview.jsx';
  * Coluna da ficha ao vivo: status, ficha, memória de cálculo e ações (baixar, imprimir, enviar).
  * poValida = ficha calculada sem pendências (ou null). As ações recebem só callbacks prontos.
  */
-export function PainelPreview({ preview, poValida, ocupado, aoBaixar, aoImprimir, aoEnviar, email, modo }) {
+export function PainelPreview({ preview, aoGerar, poValida, ocupado, aoBaixar, aoImprimir, aoEnviar, email, modo }) {
   return (
     <div className="min-w-0 xl:sticky xl:top-[76px] xl:self-start">
-      <Cartao className="print-area no-print" titulo={<StatusPreview preview={preview} />} acao={poValida && <TotalTP tp={poValida.tp_min} />}>
-        {preview.estado === 'vazio' && <Vazio>Preencha os dados, monte o roteiro ou clique em <b>Carregar exemplo oficial</b>.</Vazio>}
+      <Cartao className="print-area no-print" titulo={<StatusPreview preview={preview} />} acao={<div className="flex items-center gap-3">{poValida && <TotalTP tp={poValida.tp_min} />}
+          <Botao tamanho="sm" carregando={preview.estado === 'calculando'} onClick={aoGerar}>Gerar documento de ficha</Botao></div>}>
+        {preview.estado === 'vazio' && <Vazio>Preencha os dados, monte o roteiro (ou clique em <b>Carregar exemplo oficial</b>) e aperte <b>Enter</b> ou <b>Gerar documento de ficha</b>.</Vazio>}
         {preview.estado === 'erro' && <ListaErros variante="destaque" erros={preview.erros} />}
         {preview.po && <FichaComMemoria po={preview.po} atualizada={preview.estado === 'ok'} />}
         <div className="mt-4 flex flex-wrap gap-2 border-t border-line pt-4">

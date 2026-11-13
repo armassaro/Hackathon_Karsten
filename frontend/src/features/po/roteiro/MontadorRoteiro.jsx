@@ -1,7 +1,8 @@
 // Montador do roteiro: arrastar da matriz MTM, reordenar, frequência, digitar códigos.
 import { useMemo, useState } from 'react';
 import { min4 } from '../../../lib/fmt.js';
-import { Cartao } from '../../../components/ui/index.js';
+import { Ajuda, Cartao } from '../../../components/ui/index.js';
+import { AjudaRoteiro } from '../ajudas.jsx';
 import { MatrizElementos } from './MatrizElementos.jsx';
 import { SequenciaRoteiro } from './SequenciaRoteiro.jsx';
 import { inserirCodigos, moverPasso, tempoTotalMTM } from './roteiro.js';
@@ -28,7 +29,8 @@ export function MontadorRoteiro({ mtm, roteiro, setRoteiro }) {
   };
 
   return (
-    <Cartao titulo="Roteiro de operações (elementos MTM)" acao={<span className="num text-[13px] text-ink-3">Σ MTM {min4(tempoTotalMTM(roteiro, porCodigo))} min</span>} corpoClassName="p-0">
+    <Cartao titulo="Roteiro de operações (elementos MTM)" acao={<span className="flex items-center gap-3"><span className="num text-[13px] text-ink-3">Σ MTM {min4(tempoTotalMTM(roteiro, porCodigo))} min</span>
+      <Ajuda rotulo="Ajuda: Roteiro de operações"><AjudaRoteiro /></Ajuda></span>} corpoClassName="p-0">
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <MatrizElementos mtm={mtm} aoAdicionar={adicionar} aoArrastar={arrastarDaMatriz} />
         <SequenciaRoteiro roteiro={roteiro} setRoteiro={setRoteiro} porCodigo={porCodigo}

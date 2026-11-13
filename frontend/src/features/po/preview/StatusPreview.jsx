@@ -6,7 +6,7 @@ export function StatusPreview({ preview }) {
   return (
     <span className="flex items-center gap-2">Ficha PO
       {preview.estado === 'calculando' && <Selo>calculando…</Selo>}
-      {preview.estado === 'ok' && <Selo tom="ok">✓ válida</Selo>}
+      {preview.estado === 'desatualizada' && <Selo tom="warn">desatualizada</Selo>}
       {preview.estado === 'erro' && <Selo tom="bad">{preview.erros.length} pendência(s)</Selo>}</span>
   );
 }

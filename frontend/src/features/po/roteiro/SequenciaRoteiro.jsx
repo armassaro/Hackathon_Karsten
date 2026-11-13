@@ -1,6 +1,5 @@
 import { Botao } from '../../../components/ui/index.js';
 import { CabecalhoColuna } from './CabecalhoColuna.jsx';
-import { FormCodigos } from './FormCodigos.jsx';
 import { ItemRoteiro } from './ItemRoteiro.jsx';
 import { moverPasso, mudarFrequencia, removerPasso } from './roteiro.js';
 
@@ -29,9 +28,8 @@ export function SequenciaRoteiro({ roteiro, setRoteiro, porCodigo, arrastando, s
             aoDescer={() => setRoteiro((r) => moverPasso(r, i, i + 1))}
             aoRemover={() => setRoteiro((r) => removerPasso(r, p.id))} />
         ))}
-        {!roteiro.length && <li className="flex flex-1 items-center justify-center rounded-md border border-dashed border-line-2 px-4 py-8 text-center text-sm text-ink-3">Arraste elementos para cá, clique em ＋ ou digite os códigos abaixo.</li>}
+        {!roteiro.length && <li className="flex flex-1 items-center justify-center rounded-md border border-dashed border-line-2 px-4 py-8 text-center text-sm text-ink-3">Arraste elementos para cá, ou clique em ＋.</li>}
       </ol>
-      <FormCodigos aoAplicar={setRoteiro} />
     </div>
   );
 }

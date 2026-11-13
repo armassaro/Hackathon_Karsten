@@ -46,7 +46,6 @@ export function MatrizElementos({ mtm, aoAdicionar, aoArrastar }) {
         })}
         {!filtrados.length && <li className="py-4 text-center text-sm text-ink-3">Nenhum elemento.</li>}
       </ul>
-      <p className="mt-2 text-[11px] text-ink-3">Ctrl + clique seleciona vários · Shift + clique seleciona um intervalo · arraste a seleção para a sequência.</p>
     </div>
   );
 }

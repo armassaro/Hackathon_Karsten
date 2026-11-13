@@ -1,5 +1,6 @@
 // Componentes de interface genéricos (sem regra de negócio).
 export { Abas } from './Abas.jsx';
+export { Ajuda } from './Ajuda.jsx';
 export { Alternador } from './Alternador.jsx';
 export { Botao } from './Botao.jsx';
 export { CabecalhoOrdenavel, colunasOrdenaveis } from './CabecalhoOrdenavel.jsx';

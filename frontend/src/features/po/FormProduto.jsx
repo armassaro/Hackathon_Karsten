@@ -1,16 +1,17 @@
 import { dec } from '../../lib/fmt.js';
-import { Campo, Cartao, Entrada, Selecao } from '../../components/ui/index.js';
+import { Ajuda, Campo, Cartao, Entrada, Selecao } from '../../components/ui/index.js';
+import { AjudaProduto } from './ajudas.jsx';
 import { CAMPOS_PRODUTO } from './camposProduto.js';
 
 /** Cartão "Produto e operação": cabeçalho da ficha e máquina. set(campo) devolve o onChange do campo. */
 export function FormProduto({ form, set, maquinas }) {
   return (
-    <Cartao titulo="Produto e operação">
+    <Cartao titulo="Produto e operação" acao={<Ajuda rotulo="Ajuda: Produto e operação"><AjudaProduto /></Ajuda>}>
       <div className="grid gap-4 sm:grid-cols-6">
         {CAMPOS_PRODUTO.map((c) => (
           <Campo key={c.nome} rotulo={c.rotulo} className={c.span}>
             <Entrada inputMode={c.numero ? 'decimal' : undefined} className={c.numero ? 'num' : undefined}
-              value={form[c.nome]} onChange={set(c.nome)} placeholder={c.placeholder} />
+              value={form[c.nome]} onChange={c.numero ? soNumeros(set(c.nome)) : set(c.nome)} placeholder={c.placeholder} />
           </Campo>
         ))}
         <SeletorMaquina maquinas={maquinas} valor={form.cod_eqp} onChange={set('cod_eqp')} />
@@ -32,3 +33,8 @@ function SeletorMaquina({ maquinas, valor, onChange }) {
     </Campo>
   );
 }
+
+/** Aceita só dígitos e um separador decimal (vírgula ou ponto); outras teclas são ignoradas. */
+const soNumeros = (onChange) => (e) => {
+  if (/^\d*[.,]?\d*$/.test(e.target.value)) onChange(e);
+};
