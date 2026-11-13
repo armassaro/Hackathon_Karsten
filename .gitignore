@@ -6,3 +6,4 @@ backend/data/db.local.json.tmp
 backend/data/enviados/
 *.log
 .DS_Store
+backend/data/drive-simulado/
