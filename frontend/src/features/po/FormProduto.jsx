@@ -1,3 +1,4 @@
+import { ehDecimalParcial } from '../../lib/digitacao.js';
 import { dec } from '../../lib/fmt.js';
 import { Ajuda, Campo, Cartao, Entrada, Selecao } from '../../components/ui/index.js';
 import { AjudaProduto } from './ajudas.jsx';
@@ -36,5 +37,5 @@ function SeletorMaquina({ maquinas, valor, onChange }) {
 
 /** Aceita só dígitos e um separador decimal (vírgula ou ponto); outras teclas são ignoradas. */
 const soNumeros = (onChange) => (e) => {
-  if (/^\d*[.,]?\d*$/.test(e.target.value)) onChange(e);
+  if (ehDecimalParcial(e.target.value)) onChange(e);
 };

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api.js';
+import { ehDecimalParcial, ehInteiroParcial } from '../../lib/digitacao.js';
 import { useAvisar } from '../../components/feedback/index.js';
 import { Campo, Entrada, ListaErros, ModalFormulario } from '../../components/ui/index.js';
 
@@ -11,7 +12,8 @@ const valoresIniciais = (campos, inicial) => Object.fromEntries(campos.map((c) =
 
 /**
  * Modal genérico de criar/editar, com validação no servidor (Zod) exibida no formulário.
- * campos: [{ nome, rotulo, numero?, fixoAoEditar?, placeholder? }]. Editando = `inicial[chave]` existe:
+ * campos: [{ nome, rotulo, numero?, inteiro?, fixoAoEditar?, placeholder? }]; campos `numero` só aceitam
+ * dígitos e um separador decimal (`inteiro`: só dígitos). Editando = `inicial[chave]` existe:
  * PUT {rota}/{chave}; senão POST {rota}.
  */
 export function FormRegistro({ aberto, aoFechar, aoSalvar, titulo, rota, chave, inicial, campos }) {
@@ -52,11 +54,12 @@ export function FormRegistro({ aberto, aoFechar, aoSalvar, titulo, rota, chave, 
 }
 
 function CampoRegistro({ campo: c, valor, bloqueado, aoMudar }) {
+  const aceita = !c.numero ? null : c.inteiro ? ehInteiroParcial : ehDecimalParcial;
   return (
     <Campo rotulo={c.rotulo}>
       <Entrada value={valor} disabled={bloqueado} placeholder={c.placeholder}
-        inputMode={c.numero ? 'decimal' : undefined} className={c.numero ? 'num' : undefined}
-        onChange={(e) => aoMudar(e.target.value)} />
+        inputMode={c.numero ? (c.inteiro ? 'numeric' : 'decimal') : undefined} className={c.numero ? 'num' : undefined}
+        onChange={(e) => { if (!aceita || aceita(e.target.value)) aoMudar(e.target.value); }} />
     </Campo>
   );
 }
